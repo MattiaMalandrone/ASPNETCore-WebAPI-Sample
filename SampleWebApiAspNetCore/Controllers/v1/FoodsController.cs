@@ -8,6 +8,9 @@ using SampleWebApiAspNetCore.Services;
 using SampleWebApiAspNetCore.Models;
 using SampleWebApiAspNetCore.Repositories;
 using System.Text.Json;
+using Kendo.Mvc.UI;
+using Kendo.Mvc.Extensions;
+using System.Linq;
 
 namespace SampleWebApiAspNetCore.Controllers.v1
 {
@@ -31,29 +34,21 @@ namespace SampleWebApiAspNetCore.Controllers.v1
         }
 
         [HttpGet(Name = nameof(GetAllFoods))]
-        public ActionResult GetAllFoods(ApiVersion version, [FromQuery] QueryParameters queryParameters)
+        public ActionResult GetAllFoods(ApiVersion version, [DataSourceRequest] DataSourceRequest queryParameters)
         {
-            List<FoodEntity> foodItems = _foodRepository.GetAll(queryParameters).ToList();
+            List<FoodEntity> foodItems = _foodRepository.GetAll().ToList();
+
+            List<FoodDto> data = _mapper.Map<List<FoodDto>>(foodItems);
+
+            // https://www.telerik.com/forums/converting-datasourcerequest-filters-to-sqlserver-parameterized-query-in-controller-read-method
+            var resultFoodItems = data.ToDataSourceResult(queryParameters);
 
             var allItemCount = _foodRepository.Count();
 
-            var paginationMetadata = new
-            {
-                totalCount = allItemCount,
-                pageSize = queryParameters.PageCount,
-                currentPage = queryParameters.Page,
-                totalPages = queryParameters.GetTotalPages(allItemCount)
-            };
-
-            Response.Headers.Add("X-Pagination", JsonSerializer.Serialize(paginationMetadata));
-
-            var links = _linkService.CreateLinksForCollection(queryParameters, allItemCount, version);
-            var toReturn = foodItems.Select(x => _linkService.ExpandSingleFoodItem(x, x.Id, version));
-
             return Ok(new
             {
-                value = toReturn,
-                links = links
+                data = resultFoodItems.Data,
+                total = allItemCount
             });
         }
 
